@@ -1,0 +1,55 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP & Locate Gradle Root
+        id: locate
+        run: |
+          rm -rf build-src
+          mkdir -p build-src
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Extracting $ZIP_FILE..."
+            unzip -o "$ZIP_FILE" -d build-src
+          fi
+          GRADLE_FILE=$(find build-src . -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 1)
+          if [ -z "$GRADLE_FILE" ]; then
+            echo "ERROR: Could not find settings.gradle.kts anywhere!"
+            ls -la
+            exit 1
+          fi
+          GRADLE_DIR=$(dirname "$GRADLE_FILE")
+          echo "Found Gradle project at: $GRADLE_DIR"
+          echo "dir=$GRADLE_DIR" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Debug APK
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: gradle assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamBD-Mobile-TV-APK
+          path: ${{ steps.locate.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
+          
